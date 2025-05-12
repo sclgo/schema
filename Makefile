@@ -1,7 +1,4 @@
-.PHONY: build
-build:
-	go build .
-
+.PHONY: test
 test:
 	mkdir -p coverage/covdata
 # Use the new binary format to ensure integration tests and cross-package calls are counted towards coverage
@@ -21,8 +18,18 @@ test:
 short-test:
 	go test -v -short ./...
 
+#NB: CI uses the golangci-lint Github action, not this target
 .PHONY: lint
 lint:
-	golangci-lint run -v
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.5 run -v
 
+.PHONY: check_vuln
+check_vuln:
+	go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+# if we use more tools, we can switch to go tool -modfile=tools.mod
+# there is good discussion at https://news.ycombinator.com/item?id=42845323
 
+check_tidy:
+	go mod tidy
+	# Verify that `go mod tidy` didn't introduce any changes. Run go mod tidy before pushing.
+	git diff --exit-code --stat go.mod go.sum
