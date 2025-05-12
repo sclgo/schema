@@ -73,10 +73,15 @@ func (r LoggingQueryer) Query(q string, v ...any) (*sql.Rows, CloseFunc, error) 
 	if r.timeout != 0 {
 		ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
 		rows, err := r.db.QueryContext(ctx, q, v...)
-		return rows, func() { cancel(); rows.Close() }, err
+		return rows, func() {
+			cancel()
+			_ = rows.Close()
+		}, err
 	}
 	rows, err := r.db.QueryContext(context.Background(), q, v...)
-	return rows, func() { rows.Close() }, err
+	return rows, func() {
+		_ = rows.Close()
+	}, err
 }
 
 // CloseFunc should be called when result won't be processed anymore

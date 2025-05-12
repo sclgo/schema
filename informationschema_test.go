@@ -21,6 +21,8 @@ import (
 	"github.com/murfffi/gorich/fi"
 	dt "github.com/ory/dockertest/v3"
 	dc "github.com/ory/dockertest/v3/docker"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	_ "github.com/trinodb/trino-go-client/trino"
 )
 
@@ -967,36 +969,43 @@ func testPrivilegeSummaries(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Could not CREATE USER:\n%s\n%s", query, err)
 				}
-				defer testSpec.Db.DB.Exec(fmt.Sprintf(testSpec.DropUserStmt, testSpec.User))
+				defer func() {
+					_, err = testSpec.Db.DB.Exec(fmt.Sprintf(testSpec.DropUserStmt, testSpec.User))
+					assert.NoError(t, err)
+				}()
 
 				switch testSpec.Create {
 				case "TABLE":
 					query = fmt.Sprintf("CREATE TABLE %s.%s (col1 int, col2 varchar(255))", testSpec.Schema, name)
 					_, err = testSpec.Db.DB.Exec(query)
-					if err != nil {
-						t.Fatalf("Could not CREATE TABLE:\n%s\n%s", query, err)
-					}
-					defer testSpec.Db.DB.Exec(fmt.Sprintf("DROP TABLE %s.%s", testSpec.Schema, name))
+					require.NoError(t, err, "Could not CREATE TABLE:\n%s\n%s", query, err)
+					defer func() {
+						_, err = testSpec.Db.DB.Exec(fmt.Sprintf("DROP TABLE %s.%s", testSpec.Schema, name))
+						assert.NoError(t, err)
+					}()
 				case "VIEW":
 					query = fmt.Sprintf("CREATE TABLE %s.%s_table (col1 int, col2 varchar(255))", testSpec.Schema, name)
 					_, err = testSpec.Db.DB.Exec(query)
-					if err != nil {
-						t.Fatalf("Could not CREATE TABLE:\n%s\n%s", query, err)
-					}
-					defer testSpec.Db.DB.Exec(fmt.Sprintf("DROP TABLE %s.%s_table", testSpec.Schema, name))
+					require.NoError(t, err, "Could not CREATE TABLE:\n%s\n%s", query, err)
+					defer func() {
+						_, err = testSpec.Db.DB.Exec(fmt.Sprintf("DROP TABLE %s.%s_table", testSpec.Schema, name))
+						assert.NoError(t, err)
+					}()
 					query = fmt.Sprintf("CREATE VIEW %s.%s AS SELECT * FROM %[1]s.%[2]s_table", testSpec.Schema, name)
 					_, err = testSpec.Db.DB.Exec(query)
-					if err != nil {
-						t.Fatalf("Could not CREATE VIEW:\n%s\n%s", query, err)
-					}
-					defer testSpec.Db.DB.Exec(fmt.Sprintf("DROP VIEW %s.%s", testSpec.Schema, name))
+					require.NoError(t, err, "Could not CREATE VIEW:\n%s\n%s", query, err)
+					defer func() {
+						_, err = testSpec.Db.DB.Exec(fmt.Sprintf("DROP VIEW %s.%s", testSpec.Schema, name))
+						assert.NoError(t, err)
+					}()
 				case "SEQUENCE":
 					query = fmt.Sprintf("CREATE SEQUENCE %s.%s", testSpec.Schema, name)
 					_, err = testSpec.Db.DB.Exec(query)
-					if err != nil {
-						t.Fatalf("Could not CREATE SEQUENCE:\n%s\n%s", query, err)
-					}
-					defer testSpec.Db.DB.Exec(fmt.Sprintf("DROP SEQUENCE %s.%s", testSpec.Schema, name))
+					require.NoError(t, err, "Could not CREATE SEQUENCE:\n%s\n%s", query, err)
+					defer func() {
+						_, err = testSpec.Db.DB.Exec(fmt.Sprintf("DROP SEQUENCE %s.%s", testSpec.Schema, name))
+						assert.NoError(t, err)
+					}()
 				}
 
 				for _, grant := range testSpec.Grants {
