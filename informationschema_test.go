@@ -170,19 +170,15 @@ var (
 			},
 		},
 	}
-	cleanup bool
+	cleanup = flag.Bool("cleanup", true, "delete containers when finished")
+	only    = flag.String("dbs", "", "comma separated list of dbs to test: pgsql, mysql, sqlserver, trino")
 )
 
 func TestIS(t *testing.T) {
 	fi.SkipLongTest(t)
-	var only string
-	flag.BoolVar(&cleanup, "cleanup", true, "delete containers when finished")
-	flag.StringVar(&only, "dbs", "", "comma separated list of dbs to test: pgsql, mysql, sqlserver, trino")
-	flag.Parse()
-
-	if only != "" {
+	if *only != "" {
 		runOnly := map[string]struct{}{}
-		for _, dbName := range strings.Split(only, ",") {
+		for _, dbName := range strings.Split(*only, ",") {
 			dbName = strings.TrimSpace(dbName)
 			runOnly[dbName] = struct{}{}
 		}
@@ -194,35 +190,28 @@ func TestIS(t *testing.T) {
 	}
 
 	pool, err := dt.NewPool("")
-	if err != nil {
-		log.Fatalf("Could not connect to docker: %s", err)
-	}
+	require.NoError(t, err)
 
 	for dbName, db := range dbs {
 		var ok bool
 		db.Resource, ok = pool.ContainerByName(db.RunOptions.Name)
 		if !ok {
 			buildOpts := &dt.BuildOptions{
-				ContextDir: "../../testdata/docker",
+				ContextDir: "testdata/docker",
 				BuildArgs:  db.BuildArgs,
 			}
 			db.Resource, err = pool.BuildAndRunWithBuildOptions(buildOpts, db.RunOptions)
-			if err != nil {
-				log.Fatal("Could not start resource: ", err)
-			}
+			require.NoError(t, err)
 		}
 		state := db.Resource.Container.State.Status
-		if state != "created" && state != "running" {
-			log.Fatalf("Unexpected container state for %s: %s", dbName, state)
-		}
-		url := db.URL
+		require.Contains(t, []string{"created", "running"}, state)
+		dbUrl := db.URL
 		if db.ReadinessURL != "" {
-			url = db.ReadinessURL
+			dbUrl = db.ReadinessURL
 		}
 		port := db.Resource.GetPort(db.DockerPort)
-		if db.DB, err = waitForDbConnection(db.Driver, pool, url, port); err != nil {
-			log.Fatalf("Timed out waiting for %s: %s", dbName, err)
-		}
+		db.DB, err = waitForDbConnection(db.Driver, pool, dbUrl, port)
+		require.NoError(t, err, "Timed out waiting for %s: %s", dbName, err)
 
 		if len(db.Exec) != 0 {
 			exitCode, err := db.Resource.Exec(db.Exec, dt.ExecOptions{
@@ -231,16 +220,15 @@ func TestIS(t *testing.T) {
 				StdErr: os.Stderr,
 				TTY:    true,
 			})
-			if err != nil || exitCode != 0 {
-				log.Fatal("Could not load schema: ", err)
-			}
+			require.NoError(t, err)
+			require.Equal(t, 0, exitCode)
 		}
 
 		// Reconnect with actual URL if a separate URL for readiness checking was used
 		if db.ReadinessURL != "" {
-			if db.DB, err = waitForDbConnection(db.Driver, pool, db.URL, port); err != nil {
-				log.Fatalf("Timed out waiting for %s: %s", dbName, err)
-			}
+			require.NoError(t, db.DB.Close())
+			db.DB, err = waitForDbConnection(db.Driver, pool, db.URL, port)
+			require.NoError(t, err, "Timed out waiting for %s: %s", dbName, err)
 		}
 		db.Reader = NewFromDB(db.DB, db.Opts...)
 	}
@@ -260,7 +248,7 @@ func TestIS(t *testing.T) {
 	t.Run("PrivilegeSummaries", testPrivilegeSummaries)
 
 	// You can't defer this because os.Exit doesn't care for defer
-	if cleanup {
+	if *cleanup {
 		for _, db := range dbs {
 			if err := pool.Purge(db.Resource); err != nil {
 				log.Fatal("Could not purge resource: ", err)
