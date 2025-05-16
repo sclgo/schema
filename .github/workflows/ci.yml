@@ -27,7 +27,7 @@ jobs:
     - name: Test
       run: |
         sudo apt-get install moreutils -y
-        make short-test
+        make test
 
   # platforms:
   #   runs-on: ${{ matrix.os }}

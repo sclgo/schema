@@ -7,6 +7,7 @@ test:
 	go test -race -cover -covermode atomic -v -vet=all -timeout 15m -p 1\
 		./... \
 		-args -test.gocoverdir="${PWD}/coverage/covdata" \
+		-dbs pgsql,mysql \
 		| ts -s
 # NB: ts command requires moreutils package; awk trick from https://stackoverflow.com/a/25764579 doesn't stream output
 	go tool covdata percent -i=./coverage/covdata
